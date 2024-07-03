@@ -31,7 +31,7 @@ in the LICENSE file in the root directory of this source tree.
 	{{- end }}
 {{- end }}
 
-func ({{ $receiver }} *{{ $builder }}) sqlSave(ctx context.Context) ({{ $ret }} {{ if $one }}*{{ $.Name }}{{ else }}int{{ end }}, err error) {
+func ({{ $receiver }} *{{ $builder }}) sqlSave(ctx context.Context) ({{ $ret }} {{ if $one }}*ent.{{ $.Name }}{{ else }}int{{ end }}, err error) {
 	{{- if $.HasUpdateCheckers }}
 		if err := {{ $receiver }}.check(); err != nil {
 			return {{ $ret }}, err
@@ -49,7 +49,7 @@ func ({{ $receiver }} *{{ $builder }}) sqlSave(ctx context.Context) ({{ $ret }} 
 		{{- if $.HasOneFieldID }}
 			id, ok := {{ $mutation }}.{{ $.ID.MutationGet }}()
 			if !ok {
-				return {{ $zero }}, &ValidationError{Name: "{{ $.ID.Name }}", err: errors.New(`{{ $pkg }}: missing "{{ $.Name }}.{{ $.ID.Name }}" for update`)}
+				return {{ $zero }}, ent.NewValidationError("{{ $.ID.Name }}", errors.New(`{{ $pkg }}: missing "{{ $.Name }}.{{ $.ID.Name }}" for update`))
 			}
 			_spec.Node.ID.Value = id
 			if fields := {{ $receiver }}.fields; len(fields) > 0 {
@@ -57,7 +57,7 @@ func ({{ $receiver }} *{{ $builder }}) sqlSave(ctx context.Context) ({{ $ret }} 
 				_spec.Node.Columns = append(_spec.Node.Columns, {{ $.ID.Constant }})
 				for _, f := range fields {
 					if !ValidColumn(f) {
-						return nil, &ValidationError{Name: f, err: fmt.Errorf("{{ $pkg }}: invalid field %q for query", f)}
+						return nil, ent.NewValidationError(f, fmt.Errorf("{{ $pkg }}: invalid field %q for query", f))
 					}
 					if f != {{ $.ID.Constant }} {
 						_spec.Node.Columns = append(_spec.Node.Columns, f)
@@ -163,19 +163,19 @@ func ({{ $receiver }} *{{ $builder }}) sqlSave(ctx context.Context) ({{ $ret }} 
 		{{- end }}
 	{{- end }}
 	{{- if $one }}
-		{{ $ret }} = &{{ $.Name }}{config: {{ $receiver }}.config}
+		{{ $ret }} = &ent.{{ $.Name }}{config: {{ $receiver }}.config}
 		_spec.Assign = {{ $ret }}.assignValues
 		_spec.ScanValues = {{ $ret }}.scanValues
 	{{- end }}
 	{{- if $one }}
 		if err = sqlgraph.UpdateNode(ctx, {{ $receiver }}.driver, _spec); err != nil {
 	{{- else }}
-		if {{ $ret }}, err = sqlgraph.UpdateNodes(ctx, {{ $receiver }}.driver, _spec); err != nil {
+		if {{ $ret }}, err = sqlgraph.UpdateNodes(ctx, {{ $receiver }}.config.Driver, _spec); err != nil {
 	{{- end }}
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
-			err = &NotFoundError{ Label}
+			err = ent.NewNotFoundError(Label)
 		} else if sqlgraph.IsConstraintError(err) {
-			err = &ConstraintError{msg: err.Error(), wrap: err}
+			err = ent.NewConstraintError(err.Error(), err)
 		}
 		return {{ $zero }}, err
 	}

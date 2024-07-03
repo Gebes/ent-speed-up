@@ -18,6 +18,8 @@ in the LICENSE file in the root directory of this source tree.
 import (
   "log"
 	"entgo.io/ent/dialect"
+	"entgo.io/ent/dialect/sql/sqlgraph"
+	stdent "entgo.io/ent"
   "{{ $.Config.Package }}"
   {{- range $dep := $deps }}
 		{{ $dep.Type.PkgName }} "{{ $dep.Type.PkgPath }}"
@@ -115,6 +117,92 @@ func WithHooks[V ent.Value, M any, PM interface {
 	}
 	return nv, nil
 }
+
+
+// setContextOp returns a new context with the given QueryContext attached (including its op) in case it does not exist.
+func SetContextOp(ctx context.Context, qc *ent.QueryContext, op string) context.Context {
+	if stdent.QueryFromContext(ctx) == nil {
+		qc.Op = op
+		ctx = stdent.NewQueryContext(ctx, qc)
+	}
+	return ctx
+}
+
+func QuerierAll[V ent.Value, Q interface {
+	sqlAll(context.Context, ...QueryHook) (V, error)
+}]() ent.Querier {
+	return ent.QuerierFunc(func(ctx context.Context, q ent.Query) (ent.Value, error) {
+		query, ok := q.(Q)
+		if !ok {
+			return nil, fmt.Errorf("unexpected query type %T", q)
+		}
+		return query.sqlAll(ctx)
+	})
+}
+
+func QuerierCount[Q interface {
+	sqlCount(context.Context) (int, error)
+}]() ent.Querier {
+	return ent.QuerierFunc(func(ctx context.Context, q ent.Query) (ent.Value, error) {
+		query, ok := q.(Q)
+		if !ok {
+			return nil, fmt.Errorf("unexpected query type %T", q)
+		}
+		return query.sqlCount(ctx)
+	})
+}
+
+func WithInterceptors[V ent.Value](ctx context.Context, q ent.Query, qr ent.Querier, inters []ent.Interceptor) (v V, err error) {
+	for i := len(inters) - 1; i >= 0; i-- {
+		qr = inters[i].Intercept(qr)
+	}
+	rv, err := qr.Query(ctx, q)
+	if err != nil {
+		return v, err
+	}
+	vt, ok := rv.(V)
+	if !ok {
+		return v, fmt.Errorf("unexpected type %T returned from %T. expected type: %T", vt, q, v)
+	}
+	return vt, nil
+}
+
+func ScanWithInterceptors[Q1 ent.Query, Q2 interface {
+	sqlScan(context.Context, Q1, any) error
+}](ctx context.Context, rootQuery Q1, selectOrGroup Q2, inters []ent.Interceptor, v any) error {
+	rv := reflect.ValueOf(v)
+	var qr ent.Querier = ent.QuerierFunc(func(ctx context.Context, q ent.Query) (ent.Value, error) {
+		query, ok := q.(Q1)
+		if !ok {
+			return nil, fmt.Errorf("unexpected query type %T", q)
+		}
+		if err := selectOrGroup.sqlScan(ctx, query, v); err != nil {
+			return nil, err
+		}
+		if k := rv.Kind(); k == reflect.Pointer && rv.Elem().CanInterface() {
+			return rv.Elem().Interface(), nil
+		}
+		return v, nil
+	})
+	for i := len(inters) - 1; i >= 0; i-- {
+		qr = inters[i].Intercept(qr)
+	}
+	vv, err := qr.Query(ctx, rootQuery)
+	if err != nil {
+		return err
+	}
+	switch rv2 := reflect.ValueOf(vv); {
+	case rv.IsNil(), rv2.IsNil(), rv.Kind() != reflect.Pointer:
+	case rv.Type() == rv2.Type():
+		rv.Elem().Set(rv2.Elem())
+	case rv.Elem().Type() == rv2.Type():
+		rv.Elem().Set(rv2)
+	}
+	return nil
+}
+
+// queryHook describes an internal hook for the different sqlAll methods.
+type QueryHook func(context.Context, *sqlgraph.QuerySpec)
 
 
 {{ end }}

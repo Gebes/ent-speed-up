@@ -25,8 +25,8 @@ import (
 
 // {{ $builder }} is the builder for deleting a {{ $.Name }} entity.
 type {{ $builder }} struct {
-	config
-	hooks      []Hook
+	config internal.Config
+	hooks      []ent.Hook
 	mutation   *{{ $.MutationName }}
 }
 
@@ -84,7 +84,7 @@ func ({{ $oneReceiver }} *{{ $onebuilder }}) Exec(ctx context.Context) error {
 	case err != nil:
 		return err
 	case n == 0:
-		return &NotFoundError{ {{ $.Package }}.Label}
+		return ent.NewNotFoundError(Label)
 	default:
 		return nil
 	}

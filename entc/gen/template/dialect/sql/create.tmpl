@@ -142,7 +142,7 @@ func ({{ $receiver }} *{{ $builder }}) createSpec() (*ent.{{ $.Name }}, *sqlgrap
 {{ $receiver := $.Scope.Receiver }}
 
 // Save creates the {{ $.Name }} entities in the database.
-func ({{ $receiver }} *{{ $builder }}) Save(ctx context.Context) ([]*{{ $.Name }}, error) {
+func ({{ $receiver }} *{{ $builder }}) Save(ctx context.Context) ([]*ent.{{ $.Name }}, error) {
 	{{- /* Initialization error was set by MapCreateBulk. */}}
 	if {{ $receiver }}.err != nil {
 		return nil, {{ $receiver }}.err

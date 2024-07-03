@@ -12,7 +12,7 @@ in the LICENSE file in the root directory of this source tree.
 {{ $mutation := print $receiver ".mutation" }}
 
 func ({{ $receiver}} *{{ $builder }}) sqlExec(ctx context.Context) (int, error) {
-	_spec := sqlgraph.NewDeleteSpec({{ $.Package }}.Table, {{ if $.HasOneFieldID }}sqlgraph.NewFieldSpec({{ $.Package }}.{{ $.ID.Constant }}, field.{{ $.ID.Type.ConstName }}){{ else }}nil{{ end }})
+	_spec := sqlgraph.NewDeleteSpec(Table, {{ if $.HasOneFieldID }}sqlgraph.NewFieldSpec({{ $.ID.Constant }}, field.{{ $.ID.Type.ConstName }}){{ else }}nil{{ end }})
 	{{- /* Allow mutating the sqlgraph.DeleteSpec by ent extensions or user templates.*/}}
 	{{- with $tmpls := matchTemplate "dialect/sql/delete/spec/*" }}
 		{{- range $tmpl := $tmpls }}
@@ -26,9 +26,9 @@ func ({{ $receiver}} *{{ $builder }}) sqlExec(ctx context.Context) (int, error) 
 			}
 		}
 	}
-	affected, err := sqlgraph.DeleteNodes(ctx, {{ $receiver}}.driver, _spec)
+	affected, err := sqlgraph.DeleteNodes(ctx, {{ $receiver}}.config.Driver, _spec)
 	if err != nil && sqlgraph.IsConstraintError(err) {
-		err = &ConstraintError{msg: err.Error(), wrap: err}
+		err = ent.NewConstraintError(err.Error(), err)
 	}
 	{{ $mutation }}.done = true
 	return affected, err
