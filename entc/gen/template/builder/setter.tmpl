@@ -104,7 +104,7 @@ in the LICENSE file in the root directory of this source tree.
 	{{ if eq $p $receiver }} {{ $p = "v" }} {{ end }}
 	{{ $func := print (pascal $op) $e.StructField }}
 	// {{ $func }} {{ $op }}s the "{{ $e.Name }}" edge{{if not $e.Unique}}s{{ end }} to the {{ $e.Type.Name }} entity.
-	func ({{ $receiver }} *{{ $builder }}) {{ $func }}({{ $p }} {{ if not $e.Unique }}...{{ end }}*{{ $e.Type.Name}}) *{{ $builder }} {
+	func ({{ $receiver }} *{{ $builder }}) {{ $func }}({{ $p }} {{ if not $e.Unique }}...{{ end }}*ent.{{ $e.Type.Name}}) *{{ $builder }} {
 		{{ if $e.Unique -}}
 			return {{ $receiver }}.{{ $idsFunc }}({{ $p }}.ID)
 		{{- else -}}

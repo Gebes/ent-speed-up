@@ -17,6 +17,21 @@ import (
 	"reflect"
 	{{- range $n := $.Nodes }}
 		{{ $n.PackageAlias }} "{{ $n.Config.Package }}/{{ $n.PackageDir }}"
+		{{- template "import/types" $n }}
+	{{- end }}
+)
+
+const (
+	// Operation types.
+	OpCreate	= ent.OpCreate
+	OpDelete	= ent.OpDelete
+	OpDeleteOne	= ent.OpDeleteOne
+	OpUpdate	= ent.OpUpdate
+	OpUpdateOne	= ent.OpUpdateOne
+
+	// Node types.
+	{{- range $n := $.Nodes }}
+		{{ $n.TypeName }} = "{{ $n.Name }}"
 	{{- end }}
 )
 
@@ -113,6 +128,10 @@ func As(fn AggregateFunc, end string) AggregateFunc {
 	}
 {{ end }}
 
+func NewValidationError(name string, err error) *ValidationError {
+	return &ValidationError{Name: name, err: err}
+}
+
 // ValidationError returns when validating a field or edge fails.
 type ValidationError struct {
 	Name string // Field or edge name.
@@ -136,6 +155,10 @@ func IsValidationError(err error) bool {
 	}
 	var e *ValidationError
 	return errors.As(err, &e)
+}
+
+func NewNotFoundError(label string) *NotFoundError {
+	return &NotFoundError{label: label}
 }
 
 // NotFoundError returns when trying to fetch a specific entity and it was not found in the database.
@@ -165,6 +188,10 @@ func MaskNotFound(err error) error {
 	return err
 }
 
+func NewNotSingularError(label string) *NotSingularError {
+	return &NotSingularError{label: label}
+}
+
 // NotSingularError returns when trying to fetch a singular entity and more then one was found in the database.
 type NotSingularError struct {
 	label string
@@ -184,6 +211,10 @@ func IsNotSingular(err error) bool {
 	return errors.As(err, &e)
 }
 
+func NewNotLoadedError(edge string) *NotLoadedError {
+	return &NotLoadedError{edge: edge}
+}
+
 // NotLoadedError returns when trying to get a node that was not loaded by the query.
 type NotLoadedError struct {
 	edge string
@@ -201,6 +232,10 @@ func IsNotLoaded(err error) bool {
 	}
 	var e *NotLoadedError
 	return errors.As(err, &e)
+}
+
+func NewConstraintError(msg string, err error) *ConstraintError {
+	return &ConstraintError{msg: msg, wrap: err}
 }
 
 // ConstraintError returns when trying to create/update one or more entities and
@@ -297,41 +332,6 @@ func (s *selector) ScanX(ctx context.Context, v any) {
 	}
 {{ end }}
 
-
-// withHooks invokes the builder operation with the given hooks, if any.
-func withHooks[V Value, M any, PM interface {
-	*M
-	Mutation
-}](ctx context.Context, exec func(context.Context) (V, error), mutation PM, hooks []Hook) (value V, err error) {
-	if len(hooks) == 0 {
-		return exec(ctx)
-	}
-	var mut Mutator = MutateFunc(func(ctx context.Context, m Mutation) (Value, error) {
-		{{- /* redundant any() conversion is a workaround for golang/go#58633 */}}
-		mutationT, ok := any(m).(PM)
-		if !ok {
-			return nil, fmt.Errorf("unexpected mutation type %T", m)
-		}
-		// Set the mutation to the builder.
-		*mutation = *mutationT
-		return exec(ctx)
-	})
-	for i := len(hooks) - 1; i >= 0; i-- {
-		if hooks[i] == nil {
-			return value, fmt.Errorf("ent: uninitialized hook (forgotten import ent/runtime?)")
-		}
-		mut = hooks[i](mut)
-	}
-	v, err := mut.Mutate(ctx, mutation)
-	if err != nil {
-		return value, err
-	}
-	nv, ok := v.(V)
-	if !ok {
-		return value, fmt.Errorf("unexpected node type %T returned from %T", v, mutation)
-	}
-	return nv, nil
-}
 
 // setContextOp returns a new context with the given QueryContext attached (including its op) in case it does not exist.
 func setContextOp(ctx context.Context, qc *QueryContext, op string) context.Context {

@@ -72,33 +72,8 @@ import (
 {{ template "client/init" $ }}
 
 type (
-	// config is the configuration for the client and its builder.
-	config struct {
-		// driver used for executing database requests.
-		driver dialect.Driver
-		// debug enable a debug logging.
-		debug bool
-		// log used for logging on debug mode.
-		log func(...any)
-		// hooks to execute on mutations.
-		hooks *hooks
-		// interceptors to execute on queries.
-		inters *inters
-		{{- /* Additional dependency fields. */}}
-		{{- range $dep := $deps }}
-			{{ $dep.Field }} {{ $dep.Type }}
-		{{- end }}
-		{{- /* Support adding config fields from both global or dialect-specific templates. */}}
-		{{- range $prefix := list "" (printf "dialect/%s/" $.Storage) }}
-			{{- with $tmpls := matchTemplate (print $prefix "config/fields/*") }}
-				{{- range $tmpl := $tmpls }}
-					{{ xtemplate $tmpl $ }}
-				{{- end }}
-			{{- end }}
-		{{- end }}
-	}
 	// Option function to configure the client.
-	Option func(*config)
+	Option func(*innternal.Config)
 )
 
 // newConfig creates a new config for the client.

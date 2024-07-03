@@ -47,7 +47,7 @@ var (
 	Templates = []TypeTemplate{
 		{
 			Name:   "create",
-			Format: pkgf("%s_create.go"),
+			Format: pkgf("%s/create.go"),
 			ExtendPatterns: []string{
 				"dialect/*/create/fields/additional/*",
 				"dialect/*/create_bulk/fields/additional/*",
@@ -55,18 +55,22 @@ var (
 		},
 		{
 			Name:   "update",
-			Format: pkgf("%s_update.go"),
+			Format: pkgf("%s/update.go"),
 		},
 		{
 			Name:   "delete",
-			Format: pkgf("%s_delete.go"),
+			Format: pkgf("%s/delete.go"),
 		},
 		{
 			Name:   "query",
-			Format: pkgf("%s_query.go"),
+			Format: pkgf("%s/query.go"),
 			ExtendPatterns: []string{
 				"dialect/*/query/fields/additional/*",
 			},
+		},
+		{
+			Name:   "mutation",
+			Format: pkgf("%s/mutation.go"),
 		},
 		{
 			Name:   "model",
@@ -108,8 +112,8 @@ var (
 			Format: "tx.go",
 		},
 		{
-			Name:   "mutation",
-			Format: "mutation.go",
+			Name:   "internal/ent",
+			Format: "internal/ent.go",
 		},
 		{
 			Name:   "migrate",

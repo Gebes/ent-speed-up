@@ -9,18 +9,18 @@ in the LICENSE file in the root directory of this source tree.
 {{ define "query" }}
 {{ $pkg := base $.Config.Package }}
 
-{{ template "header" $ }}
-
-{{ with extend $ "Imports" $.SiblingImports }}
-	{{ template "import" . }}
+{{- with extend $ "Package" $.Package -}}
+	{{ template "header" . }}
 {{ end }}
+
+{{ template "import" $ }}
 
 {{ $builder := $.QueryName }}
 {{ $receiver := receiver $builder }}
 
 // {{ $builder }} is the builder for querying {{ $.Name }} entities.
 type {{ $builder }} struct {
-	config
+	config internal.Config
 	ctx			*QueryContext
 	order		[]{{ $.Package }}.OrderOption
 	inters		[]Interceptor

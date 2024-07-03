@@ -11,7 +11,7 @@ in the LICENSE file in the root directory of this source tree.
 {{ $receiver := $.Scope.Receiver }}
 {{ $mutation := print $receiver ".mutation"  }}
 
-func ({{ $receiver }} *{{ $builder }}) sqlSave(ctx context.Context) (*{{ $.Name }}, error) {
+func ({{ $receiver }} *{{ $builder }}) sqlSave(ctx context.Context) (*ent.{{ $.Name }}, error) {
 	if err := {{ $receiver }}.check(); err != nil {
 		return nil, err
 	}
@@ -21,9 +21,9 @@ func ({{ $receiver }} *{{ $builder }}) sqlSave(ctx context.Context) (*{{ $.Name 
 			return nil, err
 		}
 	{{- end }}
-	if err := sqlgraph.CreateNode(ctx, {{ $receiver }}.driver, _spec); err != nil {
+	if err := sqlgraph.CreateNode(ctx, {{ $receiver }}.config.Driver, _spec); err != nil {
 		if sqlgraph.IsConstraintError(err) {
-			err = &ConstraintError{msg: err.Error(), wrap: err}
+			err = ent.NewConstraintError(err.Error(), err)
 		}
 		return nil, err
 	}
@@ -64,10 +64,10 @@ func ({{ $receiver }} *{{ $builder }}) sqlSave(ctx context.Context) (*{{ $.Name 
 	return _node, nil
 }
 
-func ({{ $receiver }} *{{ $builder }}) createSpec() (*{{ $.Name }}, *sqlgraph.CreateSpec{{ if $.HasValueScanner }}, error{{ end }}) {
+func ({{ $receiver }} *{{ $builder }}) createSpec() (*ent.{{ $.Name }}, *sqlgraph.CreateSpec{{ if $.HasValueScanner }}, error{{ end }}) {
 	var (
-		_node = &{{ $.Name }}{config: {{ $receiver }}.config}
-		_spec = sqlgraph.NewCreateSpec({{ $.Package }}.Table, {{ if $.HasOneFieldID }}sqlgraph.NewFieldSpec({{ $.Package }}.{{ $.ID.Constant }}, field.{{ $.ID.Type.ConstName }}){{ else }}nil{{ end }})
+		_node = &ent.{{ $.Name }}{config: {{ $receiver }}.config}
+		_spec = sqlgraph.NewCreateSpec(Table, {{ if $.HasOneFieldID }}sqlgraph.NewFieldSpec({{ $.ID.Constant }}, field.{{ $.ID.Type.ConstName }}){{ else }}nil{{ end }})
 	)
 	{{- /* Allow mutating the sqlgraph.CreateSpec by ent extensions or user templates.*/}}
 	{{- with $tmpls := matchTemplate "dialect/sql/create/spec/*" }}
@@ -88,9 +88,9 @@ func ({{ $receiver }} *{{ $builder }}) createSpec() (*{{ $.Name }}, *sqlgraph.Cr
 				if err != nil {
 					return nil, nil, err
 				}
-				_spec.SetField({{ $.Package }}.{{ $f.Constant }}, field.{{ $f.Type.ConstName }}, vv)
+				_spec.SetField({{ $f.Constant }}, field.{{ $f.Type.ConstName }}, vv)
 			{{- else }}
-				_spec.SetField({{ $.Package }}.{{ $f.Constant }}, field.{{ $f.Type.ConstName }}, value)
+				_spec.SetField({{ $f.Constant }}, field.{{ $f.Type.ConstName }}, value)
 			{{- end }}
 			_node.{{ $f.StructField }} = {{ if $f.NillableValue }}&{{ end }}value
 		}
@@ -148,15 +148,15 @@ func ({{ $receiver }} *{{ $builder }}) Save(ctx context.Context) ([]*{{ $.Name }
 		return nil, {{ $receiver }}.err
 	}
 	specs := make([]*sqlgraph.CreateSpec, len({{ $receiver }}.builders))
-	nodes := make([]*{{ $.Name }}, len({{ $receiver }}.builders))
-	mutators := make([]Mutator, len({{ $receiver }}.builders))
+	nodes := make([]*ent.{{ $.Name }}, len({{ $receiver }}.builders))
+	mutators := make([]ent.Mutator, len({{ $receiver }}.builders))
 	for i := range {{ $receiver }}.builders {
 		func(i int, root context.Context) {
 			builder := {{ $receiver }}.builders[i]
 			{{- if $.HasDefault }}
 				builder.defaults()
 			{{- end }}
-			var mut Mutator = MutateFunc(func(ctx context.Context, m Mutation) (Value, error) {
+			var mut ent.Mutator = ent.MutateFunc(func(ctx context.Context, m ent.Mutation) (ent.Value, error) {
 				mutation, ok := m.(*{{ $.MutationName }})
 				if !ok {
 					return nil, fmt.Errorf("unexpected mutation type %T", m)
@@ -183,9 +183,9 @@ func ({{ $receiver }} *{{ $builder }}) Save(ctx context.Context) ([]*{{ $.Name }
 						{{- end }}
 					{{- end }}
 					// Invoke the actual operation on the latest mutation in the chain.
-					if err = sqlgraph.BatchCreate(ctx, {{ $receiver }}.driver, spec); err != nil {
+					if err = sqlgraph.BatchCreate(ctx, {{ $receiver }}.config.Driver, spec); err != nil {
 						if sqlgraph.IsConstraintError(err) {
-							err = &ConstraintError{msg: err.Error(), wrap: err}
+							err = ent.NewConstraintError(err.Error(), err)
 						}
 					}
 				}
@@ -227,7 +227,7 @@ func ({{ $receiver }} *{{ $builder }}) Save(ctx context.Context) ([]*{{ $.Name }
 }
 
 // SaveX is like Save, but panics if an error occurs.
-func ({{ $receiver }} *{{ $builder }}) SaveX(ctx context.Context) []*{{ $.Name }} {
+func ({{ $receiver }} *{{ $builder }}) SaveX(ctx context.Context) []*ent.{{ $.Name }} {
 	v, err := {{ $receiver }}.Save(ctx)
 	if err != nil {
 		panic(err)

@@ -1,0 +1,120 @@
+{{/*
+Copyright 2019-present Facebook Inc. All rights reserved.
+This source code is licensed under the Apache 2.0 license found
+in the LICENSE file in the root directory of this source tree.
+*/}}
+
+{{/* gotype: entgo.io/ent/entc/gen.Graph */}}
+
+{{ define "internal/ent" }}
+
+{{- with extend $ "Package" "internal" -}}
+	{{ template "header" . }}
+{{ end }}
+
+{{/* Additional dependencies injected to config. */}}
+{{ $deps := list }}{{ with $.Config.Annotations }}{{ $deps = $.Config.Annotations.Dependencies }}{{ end }}
+
+import (
+  "log"
+	"entgo.io/ent/dialect"
+  "{{ $.Config.Package }}"
+  {{- range $dep := $deps }}
+		{{ $dep.Type.PkgName }} "{{ $dep.Type.PkgPath }}"
+	{{- end }}
+)
+
+
+type (
+	// config is the configuration for the client and its builder.
+	Config struct {
+		// Driver used for executing database requests.
+		Driver dialect.Driver
+		// Debug enable a Debug logging.
+		Debug bool
+		// Log used for logging on Debug mode.
+		Log func(...any)
+		// Hooks to execute on mutations.
+		Hooks *Hooks
+		// interceptors to execute on queries.
+		Inters *Inters
+		{{- /* Additional dependency fields. */}}
+		{{- range $dep := $deps }}
+			{{ $dep.Field }} {{ $dep.Type }}
+		{{- end }}
+		{{- /* Support adding config fields from both global or dialect-specific templates. */}}
+		{{- range $prefix := list "" (printf "dialect/%s/" $.Storage) }}
+			{{- with $tmpls := matchTemplate (print $prefix "config/fields/*") }}
+				{{- range $tmpl := $tmpls }}
+					{{ xtemplate $tmpl $ }}
+				{{- end }}
+			{{- end }}
+		{{- end }}
+	}
+)
+
+// newConfig creates a new config for the client.
+func NewConfig(opts ...ent.Option) Config {
+	cfg := Config{Log: log.Println, Hooks: &Hooks{}, Inters: &Inters{}}
+	cfg.Options(opts...)
+	return cfg
+}
+
+// options applies the options on the config object.
+func (c *Config) Options(opts ...ent.Option) {
+	for _, opt := range opts {
+		opt(c)
+	}
+	if c.Debug {
+		c.Driver = dialect.Debug(c.Driver, c.Log)
+	}
+}
+
+// Hooks and interceptors per client, for fast access.
+type (
+	Hooks struct {
+		User []ent.Hook
+	}
+	Inters struct {
+		User []ent.Interceptor
+	}
+)
+
+
+// withHooks invokes the builder operation with the given hooks, if any.
+func WithHooks[V ent.Value, M any, PM interface {
+	*M
+	ent.Mutation
+}](ctx context.Context, exec func(context.Context) (V, error), mutation PM, hooks []ent.Hook) (value V, err error) {
+	if len(hooks) == 0 {
+		return exec(ctx)
+	}
+	var mut ent.Mutator = ent.MutateFunc(func(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+		{{- /* redundant any() conversion is a workaround for golang/go#58633 */}}
+		mutationT, ok := any(m).(PM)
+		if !ok {
+			return nil, fmt.Errorf("unexpected mutation type %T", m)
+		}
+		// Set the mutation to the builder.
+		*mutation = *mutationT
+		return exec(ctx)
+	})
+	for i := len(hooks) - 1; i >= 0; i-- {
+		if hooks[i] == nil {
+			return value, fmt.Errorf("ent: uninitialized hook (forgotten import ent/runtime?)")
+		}
+		mut = hooks[i](mut)
+	}
+	v, err := mut.Mutate(ctx, mutation)
+	if err != nil {
+		return value, err
+	}
+	nv, ok := v.(V)
+	if !ok {
+		return value, fmt.Errorf("unexpected node type %T returned from %T", v, mutation)
+	}
+	return nv, nil
+}
+
+
+{{ end }}
